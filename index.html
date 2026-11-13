@@ -294,12 +294,8 @@
   </footer>
 
   <script>
-    // =========================================================================
-    // COLE ABAIXO O SEU LINK DO GOOGLE APPS SCRIPTS ENTRE AS ASPAS SIMPLES
-    // =========================================================================
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyPy9l2WZ0cGhdQcVgLjQrI03jdOeLStk7Outes6W1yIRpQUiW-qjfUBSTfzyP425U7nA/exec';
 
-    // Estado Global da Aplicação
     let appData = {
       participantes: [],
       depositos: [],
@@ -310,13 +306,11 @@
     let totalBrutoGlobal = 0;
     let totalLiquidoGlobal = 0;
 
-    // Inicialização
     window.addEventListener('DOMContentLoaded', () => {
       startCountdown();
       fetchSheetData();
     });
 
-    // Buscar dados da Planilha via Apps Script
     async function fetchSheetData() {
       const overlay = document.getElementById('loadingOverlay');
       
@@ -331,7 +325,6 @@
         const data = await response.json();
         appData = data;
 
-        // Atualizar prêmio vindo da aba 'Premio' da planilha
         if (data.premioEstimado) {
           document.getElementById('premioSimuladoInput').value = data.premioEstimado;
         }
@@ -345,12 +338,10 @@
       }
     }
 
-    // Formatação de Moeda
     function formatBRL(value) {
       return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
 
-    // Máscara de CPF no input
     function maskCPF(input) {
       let v = input.value.replace(/\D/g, '');
       v = v.replace(/(\d{3})(\d)/, '$1.$2');
@@ -359,7 +350,6 @@
       input.value = v;
     }
 
-    // Login via CPF
     function handleLogin(event) {
       event.preventDefault();
       const rawCpf = document.getElementById('cpfInput').value.replace(/\D/g, '');
@@ -386,28 +376,23 @@
       document.getElementById('cpfInput').value = '';
     }
 
-    // Cálculos Globais de Arrecadação e Taxa de 10%
     function processarDadosFinanceiros() {
       totalBrutoGlobal = appData.depositos.reduce((acc, dep) => acc + (Number(dep.valor) || 0), 0);
-      totalLiquidoGlobal = totalBrutoGlobal * 0.90; // Desconto de 10% taxa adm
+      totalLiquidoGlobal = totalBrutoGlobal * 0.90;
     }
 
-    // Renderizar Dashboard Completo do Participante
     function renderDashboard() {
       document.getElementById('loginSection').classList.add('hidden');
       document.getElementById('dashboardSection').classList.remove('hidden');
       document.getElementById('userHeaderInfo').classList.remove('hidden');
 
-      // Cabeçalho
       document.getElementById('headerUserName').textContent = currentUser.nome;
       document.getElementById('headerUserRole').textContent = `CPF: ${currentUser.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.***.***-$4')}`;
 
-      // Cálculos do Usuário Atual
       const userDeposits = appData.depositos.filter(d => d.cpf === currentUser.cpf);
       const userTotalInvested = userDeposits.reduce((acc, d) => acc + (Number(d.valor) || 0), 0);
       const userPercentage = totalBrutoGlobal > 0 ? (userTotalInvested / totalBrutoGlobal) * 100 : 0;
 
-      // Atualizar Cards Principais
       const activeParticipants = appData.participantes.filter(p => String(p.status).toLowerCase() !== 'inativo');
       document.getElementById('statTotalBruto').textContent = formatBRL(totalBrutoGlobal);
       document.getElementById('statTotalParticipantes').textContent = activeParticipants.length;
@@ -416,14 +401,109 @@
       document.getElementById('statUserPercent').textContent = `${userPercentage.toFixed(2)}%`;
       document.getElementById('confUserPercent').textContent = `${userPercentage.toFixed(2)}%`;
 
-      // Guardar porcentagem no elemento para o conferidor
       document.getElementById('suaPartePremio').dataset.percent = userPercentage;
 
-      // Executar Simulador de Estratégia Matemática
       simularEstrategiaJogos(totalLiquidoGlobal);
-
-      // Renderizar Jogos Registrados
       renderJogos();
+      renderRankingTable(activeParticipants);
+      conferirJogos();
+    }
 
-      // Renderizar Tabela de Transparência
-      renderRankingTable
+    function simularEstrategiaJogos(saldoLiquido) {
+      let restante = saldoLiquido;
+      
+      const qtd8 = Math.floor(restante / 168);
+      restante = restante % 168;
+
+      const qtd7 = Math.floor(restante / 42);
+      restante = restante % 42;
+
+      const qtd6 = Math.floor(restante / 6);
+      restante = restante % 6;
+
+      const combinacoesEquivalentes = (qtd8 * 28) + (qtd7 * 7) + (qtd6 * 1);
+
+      document.getElementById('simSaldoLiquidoText').textContent = formatBRL(saldoLiquido);
+      document.getElementById('simQtd8').textContent = qtd8;
+      document.getElementById('simQtd7').textContent = qtd7;
+      document.getElementById('simQtd6').textContent = qtd6;
+      document.getElementById('simResto').textContent = formatBRL(restante);
+      document.getElementById('simTotalCombinacoes').textContent = `${combinacoesEquivalentes} apostas simples equivalentes`;
+    }
+
+    function renderJogos(drawnNumbers = []) {
+      const container = document.getElementById('jogosContainer');
+      const badge = document.getElementById('badgeTotalJogos');
+      
+      badge.textContent = `${appData.jogos.length} ${appData.jogos.length === 1 ? 'jogo registrado' : 'jogos registrados'}`;
+
+      if (!appData.jogos || appData.jogos.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full bg-black/30 border border-dashed border-emerald-700/50 rounded-xl p-8 text-center">
+            <p class="text-emerald-300 font-medium">Nenhum jogo oficial registrado ainda.</p>
+            <p class="text-xs text-emerald-400/60 mt-1">As cartelas serão registradas e publicadas aqui no dia 21/12/2026 após o fechamento da arrecadação.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = appData.jogos.map((jogo, index) => {
+        const dezenasFormatadas = jogo.dezenas.map(n => String(n).padStart(2, '0'));
+        const acertos = dezenasFormatadas.filter(n => drawnNumbers.includes(n)).length;
+
+        let badgeAcerto = '';
+        if (drawnNumbers.length > 0) {
+          if (acertos === 6) badgeAcerto = `<span class="px-2 py-0.5 rounded bg-amber-500 text-black font-black text-xs animate-bounce">🏆 SENA (6 ACERTOS)!</span>`;
+          else if (acertos === 5) badgeAcerto = `<span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold text-xs">⭐ QUINA (5 ACERTOS)</span>`;
+          else if (acertos === 4) badgeAcerto = `<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold text-xs">🍀 QUADRA (4 ACERTOS)</span>`;
+          else badgeAcerto = `<span class="text-xs text-emerald-400/60">${acertos} acerto(s)</span>`;
+        }
+
+        const ballsHTML = dezenasFormatadas.map(num => {
+          const isHit = drawnNumbers.includes(num);
+          return `<span class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white transition-all ${isHit ? 'ball-hit' : 'ball-number'}">${num}</span>`;
+        }).join('');
+
+        return `
+          <div class="bg-black/40 border border-emerald-800/50 rounded-xl p-4 flex flex-col justify-between gap-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-emerald-300">JOGO #${jogo.id || (index + 1)} • ${jogo.qtdDezenas} Dezenas</span>
+              ${badgeAcerto}
+            </div>
+            <div class="flex flex-wrap gap-2">
+              ${ballsHTML}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function conferirJogos() {
+      const inputs = document.querySelectorAll('.draw-input');
+      const drawnNumbers = Array.from(inputs)
+        .map(inp => inp.value.trim())
+        .filter(val => val !== '' && Number(val) >= 1 && Number(val) <= 60)
+        .map(val => String(Number(val)).padStart(2, '0'));
+
+      renderJogos(drawnNumbers);
+
+      const premioTotal = Number(document.getElementById('premioSimuladoInput').value) || 0;
+      const userPercent = Number(document.getElementById('suaPartePremio').dataset.percent) || 0;
+      const userShare = premioTotal * (userPercent / 100);
+
+      document.getElementById('suaPartePremio').textContent = formatBRL(userShare);
+    }
+
+    function renderRankingTable(participants) {
+      const tbody = document.getElementById('rankingTableBody');
+
+      const ranking = participants.map(p => {
+        const total = appData.depositos
+          .filter(d => d.cpf === p.cpf)
+          .reduce((acc, d) => acc + (Number(d.valor) || 0), 0);
+        const percent = totalBrutoGlobal > 0 ? (total / totalBrutoGlobal) * 100 : 0;
+        return { ...p, total, percent };
+      }).sort((a, b) => b.total - a.total);
+
+      tbody.innerHTML = ranking.map(item => {
+        const isCurrentUser = currentUser && item.cpf === current
